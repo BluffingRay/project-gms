@@ -1,6 +1,6 @@
 # Project GMS: Grade Management System
 
-A simple system designed to manage student enrollment, grades, and academic performance records in streamlit.
+A simple system designed to manage student enrollment, grades, and academic performance records in streamlit. This helps with managing each student's grades in different subject.
 
 ## Key Features
 
