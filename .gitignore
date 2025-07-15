@@ -1,0 +1,28 @@
+# Ignore Python virtual environment
+.venv/
+venv/
+env/
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore secrets (optional)
+credentials.json
+
+# Ignore Streamlit configuration and logs
+.streamlit/config.toml
+.streamlit/secrets.toml
+logs/
+
+# Ignore Jupyter files if any
+.ipynb_checkpoints/
+
+# Ignore IDE files (optional)
+.vscode/
+.idea/
