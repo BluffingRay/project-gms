@@ -35,6 +35,7 @@ To run locally, create your own `.streamlit/secrets.toml` file:
 ```toml
 SUPABASE_URL = "https://your-project.supabase.co"
 SUPABASE_KEY = "your-secret-key"
+```
 
 ## 🚧 Status
 In Progress: Core functionalities are in place. Feature testing and error-handling, and design in the works.
