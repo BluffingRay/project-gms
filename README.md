@@ -1,6 +1,6 @@
 # 📚 Project GMS: Grade Management System
 
-A simple and streamlined system designed to manage student enrollment, grades, and academic performance records.
+A simple system designed to manage student enrollment, grades, and academic performance records in streamlit.
 
 ## 🎯 Key Features
 
@@ -21,7 +21,11 @@ A simple and streamlined system designed to manage student enrollment, grades, a
 - Python 3.x
 - Streamlit for the web interface
 - Supabase for database services
-- pandas for data manipulation
+  
+## 📜 Notes
+
+- Grade arrangement heavily based on University of Southeastern Philippine's system.
+- Might only be usable for semester and grading system similar to USePs.
 
 ## 🔑 Developer Setup Note
 This project uses **Streamlit `secrets.toml`** for managing database credentials securely.
