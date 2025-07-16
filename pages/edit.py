@@ -59,7 +59,9 @@ student_df["fullname"] = student_df["firstname"] + " " + student_df["lastname"]
 student_df = student_df.sort_values(by="fullname")
 
 student_names = student_df["fullname"].tolist()
-name_to_id = {row["fullname"]: row["studentid"] for _, row in student_df.iterrows()}
+
+# Create a mapping of names to student IDs
+name_to_id = {f"{s['firstname']} {s['lastname']}": s['studentid'] for s in students}
 
 col1, col2 = st.columns([6, 1])
 
