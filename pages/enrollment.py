@@ -280,7 +280,7 @@ with tab2:
             "enrollmentstatus": "Status"
         }, inplace=True)
 
-        df["Type"] = df["Status"].apply(lambda x: "🔄 Irregular" if x == "Irregular" else "📋 Regular")
+        df["Type"] = df["Status"].apply(lambda x: "🔄 Irregular" if x == "Enrolled - Irregular" else "📋 Regular")
 
         col1, col2, col3, col4, col5 = st.columns(5)
         programs = ["All"] + sorted(df["Program"].unique().tolist())

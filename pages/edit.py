@@ -4,10 +4,12 @@ from services.enrollment_service import (
     get_all_students,
     get_all_enrollments,
     update_student_status,
+    update_enrollment_status_and_remarks
 )
 from services.student_service import update_student_info
 from services.grades_service import upsert_grade
 from services.curriculum_service import get_all_curriculum_subjects
+from services.semester_service import get_all_semesters
 from database_client import supabase
 
 
@@ -48,55 +50,42 @@ def get_cached_enrollments():
     return st.session_state.enrollments_cache
 
 # -------------------------
-# Search Input (Top Right)
+# Search Input (Top Right) - With Load Button
 # -------------------------
 students = get_cached_students()
 student_df = pd.DataFrame(students)
-
-# ✅ Filter only REGULAR students (adjust the case if needed)
 student_df = student_df[student_df["status"].str.lower() == "regular"]
-
-# ✅ Build and sort full names alphabetically
 student_df["fullname"] = student_df["firstname"] + " " + student_df["lastname"]
 student_df = student_df.sort_values(by="fullname")
-student_names = student_df["fullname"].tolist()
-student_names = [f"{s['firstname']} {s['lastname']}" for s in students]
 
-# Create a mapping of names to student IDs
-name_to_id = {f"{s['firstname']} {s['lastname']}": s['studentid'] for s in students}
+student_names = student_df["fullname"].tolist()
+name_to_id = {row["fullname"]: row["studentid"] for _, row in student_df.iterrows()}
 
 col1, col2 = st.columns([6, 1])
-with col2:
-    # Find the index of the previously selected student
-    default_index = 0
-    if st.session_state.selected_student_id:
-        try:
-            selected_name = next(name for name, sid in name_to_id.items() 
-                                if sid == st.session_state.selected_student_id)
-            default_index = student_names.index(selected_name)
-        except (StopIteration, ValueError):
-            default_index = 0
-    
-    selected_student_name = st.selectbox(
-        " ", 
-        student_names, 
-        index=default_index,
-        label_visibility="collapsed"
-    )
 
-if not selected_student_name:
+with col1:
+    selected_student_name = st.selectbox(" ", student_names, label_visibility="collapsed")
+
+with col2:
+    if st.button("🔍 Load Student"):
+        if selected_student_name:
+            st.session_state.selected_student_id = name_to_id[selected_student_name]
+            st.session_state.selected_semester = None  # Optional: Reset semester if needed
+            st.rerun()
+
+# -------------------------
+# Stop if no student selected yet
+# -------------------------
+if not st.session_state.selected_student_id:
     st.stop()
 
-selected_student = student_df[student_df["fullname"] == selected_student_name].iloc[0]
-# Update session state with selected student
-st.session_state.selected_student_id = name_to_id[selected_student_name]
-
-selected_student = student_df[
-    (student_df["firstname"] + " " + student_df["lastname"]) == selected_student_name
-].iloc[0]
-
-student_id = selected_student["studentid"]
-
+# -------------------------
+# Get selected student info
+# -------------------------
+student_df = student_df.set_index("studentid")
+selected_student = student_df.loc[st.session_state.selected_student_id]
+student_id = selected_student.name
+selected_student_name = selected_student["fullname"]
 
 
 # -------------------------
@@ -301,14 +290,15 @@ with tab2:
     st.markdown("<br>", unsafe_allow_html=True)
 
     updated_info = {}
+    new_status = selected_student.get("status", "")
+
     for col in selected_student.index:
         if col in ["studentid", "remarks"]:  # Skip primary key and remarks
             continue
-            
+
         value = selected_student[col] if pd.notna(selected_student[col]) else ""
 
         if col.lower() == "dateofbirth":
-            # Handle date input
             try:
                 value = pd.to_datetime(value).date() if value else None
             except:
@@ -319,21 +309,22 @@ with tab2:
                 value=value if value else pd.to_datetime("2000-01-01"),
                 format="YYYY-MM-DD"
             ).strftime("%Y-%m-%d")
-            
-        # NEW: Handle DL Applicable as Yes/No
+
         elif col == "dl_applicable":
             dl_value = "Yes" if value else "No"
             new_dl = st.selectbox("DL Applicable", ["Yes", "No"], index=0 if dl_value == "Yes" else 1)
             updated_info[col] = (new_dl == "Yes")
-            
-        # NEW: Handle Laude Applicable as Yes/No
+
         elif col == "laude_applicable":
             laude_value = "Yes" if value else "No"
             new_laude = st.selectbox("Laude Applicable", ["Yes", "No"], index=0 if laude_value == "Yes" else 1)
             updated_info[col] = (new_laude == "Yes")
-            
+
+        elif col == "status":
+            new_status = st.text_input("Status (Free Text)", value=str(value))
+            updated_info[col] = new_status
+
         else:
-            # Handle all other fields as text inputs
             updated_info[col] = st.text_input(f"{col.capitalize()}", value=str(value))
 
 
@@ -348,32 +339,58 @@ with tab3:
 st.markdown("<br><hr><br>", unsafe_allow_html=True)
 col1, col2 = st.columns([3, 1])
 
+# -------------------------
+# Update Enrollments on Save
+# -------------------------
 with col1:
     if st.button("💾 Save Changes"):
         try:
             # Exclude 'fullname' from being saved
             data_to_save = {k: v for k, v in updated_info.items() if k != "fullname"}
-            
+
             # Update Student Info (dynamic columns)
             update_student_info(
                 student_id=student_id,
                 data=data_to_save | {"remarks": new_remarks}
             )
             
+            # 🔧 Find semester ID
+            semesters = pd.DataFrame(get_all_semesters())
+            semester_row = semesters[
+                (semesters["schoolyear"] == school_year) &
+                (semesters["term"] == semester_term)
+            ]
+            if not semester_row.empty:
+                semester_id = semester_row.iloc[0]["semesterid"]
+
+                # Update enrollment status and remarks if user edited the 'status' field
+                new_status = updated_info.get("status")
+                if new_status:
+                    enrollment_status = f"Enrolled - {new_status}"
+                    remarks = new_status
+                    
+                    from services.enrollment_service import update_enrollment_status_and_remarks
+                    update_enrollment_status_and_remarks(
+                        student_id=student_id,
+                        semester_id=semester_id,
+                        enrollment_status=enrollment_status,
+                        remarks=remarks
+                    )
+
             # Update Grades
             for enrollment_id, grade in edited_grades.items():
                 upsert_grade(enrollment_id=enrollment_id, grade=grade)
-            
+
             # Clear cache to force refresh and maintain selections
             st.session_state.students_cache = None
             st.session_state.enrollments_cache = None
             st.session_state.last_updated = pd.Timestamp.now()
-            
+
             st.success("✅ Changes Saved Successfully!")
-            
+
             # Auto-refresh to show updated data while maintaining selections
             st.rerun()
-            
+
         except Exception as e:
             st.error(f"❌ Error saving changes: {str(e)}")
 

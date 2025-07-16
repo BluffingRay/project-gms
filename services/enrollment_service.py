@@ -64,3 +64,13 @@ def get_all_regular_enrollments():
         .eq("enrollmentstatus", "Enrolled") \
         .execute()
     return response.data
+
+def update_enrollment_status_and_remarks(student_id, semester_id, enrollment_status, remarks):
+    supabase.table("enrollments") \
+        .update({
+            "enrollmentstatus": enrollment_status,
+            "remarks": remarks
+        }) \
+        .eq("studentid", student_id) \
+        .eq("semesterid", semester_id) \
+        .execute()
