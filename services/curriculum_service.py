@@ -12,3 +12,4 @@ def add_curriculum_subject(data):
 
 def delete_curriculum_subject(subject_id):
     return supabase.table('curriculum_subjects').delete().eq('id', subject_id).execute()
+

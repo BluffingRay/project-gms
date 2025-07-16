@@ -1,3 +1,4 @@
+from services.curriculum_service import get_all_curriculum_subjects
 import streamlit as st
 import pandas as pd
 from services.enrollment_service import get_all_enrollments
@@ -78,24 +79,49 @@ for subject in unique_subjects:
 # -------------------------
 # GWA
 # -------------------------
-def compute_gwa(row):
-    grades = []
-    for subject in unique_subjects:
-        try:
-            grades.append(float(row[subject]))
-        except:
-            continue
-    if not grades:
-        return "—"
-    return round(sum(grades) / len(grades), 2)
+# Ensure subject_units is defined
+curriculum_df = pd.DataFrame(get_all_curriculum_subjects())
+subject_units = curriculum_df.set_index("name")["units"].to_dict()
 
+# Compute GWA only if all subjects have valid numeric grades
+def compute_gwa(row):
+    total_gp = 0
+    total_units = 0
+
+    for subject in unique_subjects:
+        value = row.get(subject, "—")
+        try:
+            grade = float(value)
+            units = subject_units.get(subject, 0)
+            if 1.0 <= grade <= 5.0 and units > 0:
+                total_gp += grade * units
+                total_units += units
+            else:
+                return "—"  # Incomplete or invalid grade
+        except:
+            return "—"  # Not a numeric grade
+
+    if total_units == 0:
+        return "—"
+    
+    return round(total_gp / total_units, 2)
+
+# Add GWA and clean Remarks
 students["GWA"] = students.apply(compute_gwa, axis=1)
 students.rename(columns={"studentremarks": "Remarks"}, inplace=True)
 students["Remarks"] = students["Remarks"].fillna("-")
 
+# Final column order
 columns_order = ["studentname"] + unique_subjects + ["GWA", "Remarks"]
+missing_cols = [col for col in columns_order if col not in students.columns]
+if missing_cols:
+    st.error(f"Missing columns: {missing_cols}")
+    st.stop()
+
+# Rename display column
 display_df = students[columns_order]
 display_df.rename(columns={"studentname": "Name"}, inplace=True)
+
 
 # -------------------------
 # Checkbox Filters

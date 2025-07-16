@@ -7,6 +7,7 @@ from services.enrollment_service import (
 )
 from services.student_service import update_student_info
 from services.grades_service import upsert_grade
+from services.curriculum_service import get_all_curriculum_subjects
 from database_client import supabase
 
 
@@ -17,7 +18,14 @@ st.set_page_config(page_title="Edit Student Info", layout="wide")
 # -------------------------
 students = get_all_students()
 student_df = pd.DataFrame(students)
-student_names = [f"{s['firstname']} {s['lastname']}" for s in students]
+
+# ✅ Filter only REGULAR students (adjust the case if needed)
+student_df = student_df[student_df["status"].str.lower() == "regular"]
+
+# ✅ Build and sort full names alphabetically
+student_df["fullname"] = student_df["firstname"] + " " + student_df["lastname"]
+student_df = student_df.sort_values(by="fullname")
+student_names = student_df["fullname"].tolist()
 
 col1, col2 = st.columns([6, 1])
 with col2:
@@ -26,11 +34,10 @@ with col2:
 if not selected_student_name:
     st.stop()
 
-selected_student = student_df[
-    (student_df["firstname"] + " " + student_df["lastname"]) == selected_student_name
-].iloc[0]
-
+selected_student = student_df[student_df["fullname"] == selected_student_name].iloc[0]
 student_id = selected_student["studentid"]
+
+
 
 # -------------------------
 # Notice Board (Top)
@@ -69,26 +76,77 @@ if not available_semesters:
 selected_semester = st.selectbox("Select Semester to Edit Grades", available_semesters)
 school_year, semester_term = selected_semester.split(" ", 1)
 
+curriculum_df = pd.DataFrame(get_all_curriculum_subjects())
+
+# Make sure both are the same type
+student_enrollments["curriculumid"] = student_enrollments["curriculumid"].astype(str)
+curriculum_df["id"] = curriculum_df["id"].astype(str)
+
+# Merge using curriculumid
+student_enrollments = pd.merge(
+    student_enrollments,
+    curriculum_df[["id", "units"]].rename(columns={"id": "curriculumid"}),
+    on="curriculumid",
+    how="left"
+)
+
+
 # -------------------------
-# Functions
+# Compute GWA Functions
 # -------------------------
 def compute_gwa(df, term, schoolyear):
-    grades = df[
+    # Filter by term and school year
+    filtered_df = df[
         (df["semester_term"] == term) &
         (df["schoolyear"] == schoolyear)
-    ]["grade"].fillna("").astype(str)
+    ]
 
-    numeric_grades = pd.to_numeric(grades, errors="coerce").dropna()
-    valid_grades = numeric_grades[(numeric_grades >= 1.0) & (numeric_grades <= 5.0)]
+    # Clean and convert grades
+    filtered_df["grade"] = pd.to_numeric(filtered_df["grade"], errors="coerce")
+    filtered_df["units"] = pd.to_numeric(filtered_df["units"], errors="coerce")
 
-    return round(valid_grades.mean(), 2) if not valid_grades.empty else "--"
+    # Filter out invalid or missing grades and units
+    valid_df = filtered_df[
+        (filtered_df["grade"].between(1.0, 5.0)) &
+        (filtered_df["units"] > 0)
+    ]
+
+    if valid_df.empty:
+        return "--"
+
+    # Calculate total grade points and total units
+    valid_df["gp"] = valid_df["grade"] * valid_df["units"]
+    total_gp = valid_df["gp"].sum()
+    total_units = valid_df["units"].sum()
+
+    # Compute GWA
+    gwa = total_gp / total_units
+    return round(gwa, 2)
 
 
 def compute_overall_gwa(df):
-    grades = df["grade"].fillna("").astype(str)
-    numeric_grades = pd.to_numeric(grades, errors="coerce").dropna()
-    valid_grades = numeric_grades[(numeric_grades >= 1.0) & (numeric_grades <= 5.0)]
-    return round(valid_grades.mean(), 2) if not valid_grades.empty else "--"
+    # Ensure 'grade' and 'units' columns are numeric
+    df["grade"] = pd.to_numeric(df["grade"], errors="coerce")
+    df["units"] = pd.to_numeric(df["units"], errors="coerce")
+
+    # Filter valid rows: grades between 1.0–5.0 and units > 0
+    valid_df = df[
+        (df["grade"].between(1.0, 5.0)) & 
+        (df["units"] > 0)
+    ]
+
+    if valid_df.empty:
+        return "--"
+
+    # Compute GP and total units
+    valid_df["gp"] = valid_df["grade"] * valid_df["units"]
+    total_gp = valid_df["gp"].sum()
+    total_units = valid_df["units"].sum()
+
+    # Calculate GWA
+    gwa = total_gp / total_units
+    return round(gwa, 2)
+
 
 
 # -------------------------
