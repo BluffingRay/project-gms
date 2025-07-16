@@ -68,7 +68,7 @@ with tab2:
     with st.form("add_semester"):
         semester_data = {
             "schoolyear": st.text_input("School Year (e.g., 2024-2025)"),
-            "term": st.selectbox("Term", ["1st Semester", "2nd Semester", "Midyear"]),
+            "term": st.selectbox("Term", ["1st Semester", "2nd Semester", "Summer"]),
             "startdate": st.date_input("Start Date", min_value=date(2000, 1, 1)).isoformat(),
             "enddate": st.date_input("End Date", min_value=date(2000, 1, 1)).isoformat(),
         }

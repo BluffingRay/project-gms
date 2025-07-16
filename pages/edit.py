@@ -14,9 +14,43 @@ from database_client import supabase
 st.set_page_config(page_title="Edit Student Info", layout="wide")
 
 # -------------------------
+# Initialize Session State
+# -------------------------
+if 'selected_student_id' not in st.session_state:
+    st.session_state.selected_student_id = None
+if 'selected_semester' not in st.session_state:
+    st.session_state.selected_semester = None
+if 'students_cache' not in st.session_state:
+    st.session_state.students_cache = None
+if 'enrollments_cache' not in st.session_state:
+    st.session_state.enrollments_cache = None
+if 'last_updated' not in st.session_state:
+    st.session_state.last_updated = None
+
+# -------------------------
+# Cache Management Functions
+# -------------------------
+def refresh_student_data():
+    """Refresh cached data"""
+    st.session_state.students_cache = get_all_students()
+    st.session_state.enrollments_cache = get_all_enrollments()
+
+def get_cached_students():
+    """Get students from cache or fetch if not cached"""
+    if st.session_state.students_cache is None:
+        refresh_student_data()
+    return st.session_state.students_cache
+
+def get_cached_enrollments():
+    """Get enrollments from cache or fetch if not cached"""
+    if st.session_state.enrollments_cache is None:
+        refresh_student_data()
+    return st.session_state.enrollments_cache
+
+# -------------------------
 # Search Input (Top Right)
 # -------------------------
-students = get_all_students()
+students = get_cached_students()
 student_df = pd.DataFrame(students)
 
 # ✅ Filter only REGULAR students (adjust the case if needed)
@@ -26,24 +60,63 @@ student_df = student_df[student_df["status"].str.lower() == "regular"]
 student_df["fullname"] = student_df["firstname"] + " " + student_df["lastname"]
 student_df = student_df.sort_values(by="fullname")
 student_names = student_df["fullname"].tolist()
+student_names = [f"{s['firstname']} {s['lastname']}" for s in students]
+
+# Create a mapping of names to student IDs
+name_to_id = {f"{s['firstname']} {s['lastname']}": s['studentid'] for s in students}
 
 col1, col2 = st.columns([6, 1])
 with col2:
-    selected_student_name = st.selectbox(" ", student_names, label_visibility="collapsed")
+    # Find the index of the previously selected student
+    default_index = 0
+    if st.session_state.selected_student_id:
+        try:
+            selected_name = next(name for name, sid in name_to_id.items() 
+                                if sid == st.session_state.selected_student_id)
+            default_index = student_names.index(selected_name)
+        except (StopIteration, ValueError):
+            default_index = 0
+    
+    selected_student_name = st.selectbox(
+        " ", 
+        student_names, 
+        index=default_index,
+        label_visibility="collapsed"
+    )
 
 if not selected_student_name:
     st.stop()
 
 selected_student = student_df[student_df["fullname"] == selected_student_name].iloc[0]
+# Update session state with selected student
+st.session_state.selected_student_id = name_to_id[selected_student_name]
+
+selected_student = student_df[
+    (student_df["firstname"] + " " + student_df["lastname"]) == selected_student_name
+].iloc[0]
+
 student_id = selected_student["studentid"]
 
 
 
 # -------------------------
-# Notice Board (Top)
+# Notice Board (Top) - WITH NEW FIELDS
 # -------------------------
-remarks_content = selected_student.get("remarks") or "- No remarks available -"
-st.info(f"**Notice Board**\n\n{remarks_content.strip()}")
+# Get boolean values from student record
+dl_applicable = selected_student.get("dl_applicable", False)
+laude_applicable = selected_student.get("laude_applicable", False)
+
+# Create formatted notice board content
+notice_content = f"""
+**Academic Eligibility**
+- DL Applicable: {'✅ Yes' if dl_applicable else '❌ No'}
+- Laude Applicable: {'✅ Yes' if laude_applicable else '❌ No'}
+
+**Remarks**  
+{selected_student.get("remarks") or "- No remarks available -"}
+"""
+
+st.info(notice_content.strip())
 
 # -------------------------
 # Centered Student Name
@@ -56,7 +129,7 @@ st.markdown(
 # -------------------------
 # Fetch Enrollments
 # -------------------------
-enrollments = pd.DataFrame(get_all_enrollments())
+enrollments = pd.DataFrame(get_cached_enrollments())
 student_enrollments = enrollments[enrollments["studentid"] == student_id]
 
 # -------------------------
@@ -73,7 +146,20 @@ if not available_semesters:
     st.warning("No enrollments found for this student.")
     st.stop()
 
-selected_semester = st.selectbox("Select Semester to Edit Grades", available_semesters)
+# Find the index of the previously selected semester
+default_semester_index = 0
+if st.session_state.selected_semester and st.session_state.selected_semester in available_semesters:
+    default_semester_index = available_semesters.index(st.session_state.selected_semester)
+
+selected_semester = st.selectbox(
+    "Select Semester to Edit Grades", 
+    available_semesters,
+    index=default_semester_index
+)
+
+# Update session state with selected semester
+st.session_state.selected_semester = selected_semester
+
 school_year, semester_term = selected_semester.split(" ", 1)
 
 curriculum_df = pd.DataFrame(get_all_curriculum_subjects())
@@ -218,10 +304,11 @@ with tab2:
     for col in selected_student.index:
         if col in ["studentid", "remarks"]:  # Skip primary key and remarks
             continue
+            
         value = selected_student[col] if pd.notna(selected_student[col]) else ""
 
         if col.lower() == "dateofbirth":
-            # Ensure it's parsed as date if it's a string
+            # Handle date input
             try:
                 value = pd.to_datetime(value).date() if value else None
             except:
@@ -232,7 +319,21 @@ with tab2:
                 value=value if value else pd.to_datetime("2000-01-01"),
                 format="YYYY-MM-DD"
             ).strftime("%Y-%m-%d")
+            
+        # NEW: Handle DL Applicable as Yes/No
+        elif col == "dl_applicable":
+            dl_value = "Yes" if value else "No"
+            new_dl = st.selectbox("DL Applicable", ["Yes", "No"], index=0 if dl_value == "Yes" else 1)
+            updated_info[col] = (new_dl == "Yes")
+            
+        # NEW: Handle Laude Applicable as Yes/No
+        elif col == "laude_applicable":
+            laude_value = "Yes" if value else "No"
+            new_laude = st.selectbox("Laude Applicable", ["Yes", "No"], index=0 if laude_value == "Yes" else 1)
+            updated_info[col] = (new_laude == "Yes")
+            
         else:
+            # Handle all other fields as text inputs
             updated_info[col] = st.text_input(f"{col.capitalize()}", value=str(value))
 
 
@@ -245,22 +346,57 @@ with tab3:
 # Save & Delete Buttons
 # -------------------------
 st.markdown("<br><hr><br>", unsafe_allow_html=True)
-col1, col2 = st.columns(2)
+col1, col2 = st.columns([3, 1])
 
 with col1:
     if st.button("💾 Save Changes"):
-        # Update Student Info (dynamic columns)
-        update_student_info(
-            student_id=student_id,
-            data=updated_info | {"remarks": new_remarks}
-        )
-        # Update Grades
-        for enrollment_id, grade in edited_grades.items():
-            upsert_grade(enrollment_id=enrollment_id, grade=grade)
-        st.success("✅ Changes Saved!")
+        try:
+            # Exclude 'fullname' from being saved
+            data_to_save = {k: v for k, v in updated_info.items() if k != "fullname"}
+            
+            # Update Student Info (dynamic columns)
+            update_student_info(
+                student_id=student_id,
+                data=data_to_save | {"remarks": new_remarks}
+            )
+            
+            # Update Grades
+            for enrollment_id, grade in edited_grades.items():
+                upsert_grade(enrollment_id=enrollment_id, grade=grade)
+            
+            # Clear cache to force refresh and maintain selections
+            st.session_state.students_cache = None
+            st.session_state.enrollments_cache = None
+            st.session_state.last_updated = pd.Timestamp.now()
+            
+            st.success("✅ Changes Saved Successfully!")
+            
+            # Auto-refresh to show updated data while maintaining selections
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ Error saving changes: {str(e)}")
+
 
 with col2:
     if st.button("🗑️ Delete Student"):
-        supabase.table("students").delete().eq("studentid", student_id).execute()
-        st.success(f"Deleted student: {selected_student_name}")
-        st.rerun()
+        try:
+            supabase.table("students").delete().eq("studentid", student_id).execute()
+            
+            # Clear caches and session state
+            st.session_state.students_cache = None
+            st.session_state.enrollments_cache = None
+            st.session_state.selected_student_id = None
+            st.session_state.selected_semester = None
+            
+            st.success(f"✅ Deleted student: {selected_student_name}")
+            st.rerun()  # Only rerun for delete since student no longer exists
+            
+        except Exception as e:
+            st.error(f"❌ Error deleting student: {str(e)}")
+
+# -------------------------
+# Show last updated time if available
+# -------------------------
+if st.session_state.last_updated:
+    st.caption(f"Last updated: {st.session_state.last_updated.strftime('%Y-%m-%d %H:%M:%S')}")

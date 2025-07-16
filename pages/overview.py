@@ -1,7 +1,7 @@
 from services.curriculum_service import get_all_curriculum_subjects
 import streamlit as st
 import pandas as pd
-from services.enrollment_service import get_all_enrollments
+from services.enrollment_service import get_all_regular_enrollments
 
 st.set_page_config(page_title="Overview", layout="wide")
 st.title("Enrollment and Grades Overview")
@@ -9,7 +9,7 @@ st.title("Enrollment and Grades Overview")
 # -------------------------
 # Fetch Data
 # -------------------------
-data = get_all_enrollments()
+data = get_all_regular_enrollments()
 df = pd.DataFrame(data)
 
 if df.empty:

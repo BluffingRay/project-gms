@@ -3,7 +3,8 @@ import pandas as pd
 from services.curriculum_service import (
     get_all_curriculum_subjects,
     add_curriculum_subject,
-    delete_curriculum_subject
+    delete_curriculum_subject,
+    update_curriculum_subject
 )
 from utils.student_fake_data import insert_fake_curriculum_data
 
@@ -34,7 +35,7 @@ if "confirm_delete_curriculum" not in st.session_state:
 # -------------------------
 # Tabs: View / Add
 # -------------------------
-tab1, tab2 = st.tabs(["📋 View Curriculum Subjects", "➕ Add Curriculum Subject"])
+tab1, tab2, tab3 = st.tabs(["📋 View Curriculum Subjects", "➕ Add Curriculum Subject", "✏️ Edit Curriculum Subject"])
 
 # -------------------------
 # View Curriculum Subjects with Filters
@@ -119,3 +120,48 @@ with tab2:
         add_curriculum_subject(subject_data)
         st.success(f"Curriculum Subject {subject_data['code']} - {subject_data['name']} added successfully!")
         st.rerun()
+
+with tab3:
+    st.header("Edit Curriculum Subject")
+
+    curriculum_subjects = get_all_curriculum_subjects()
+    if curriculum_subjects:
+        df = pd.DataFrame(curriculum_subjects)
+        df = df.sort_values(by=["program", "yearlevel", "term", "code"])
+
+        subject_options = {
+            f"{row['program']} {row['yearlevel']} {row['term']} {row['code']} {row['name']}": row
+            for _, row in df.iterrows()
+        }
+
+        selected_subject_key = st.selectbox("Select Curriculum Subject to Edit", list(subject_options.keys()))
+        selected_subject = subject_options[selected_subject_key]
+
+        with st.form("edit_curriculum_subject"):
+            program = st.selectbox("Program", programs, index=programs.index(selected_subject["program"]))
+            yearlevel = st.selectbox("Year Level", year_levels, index=year_levels.index(selected_subject["yearlevel"]))
+            term = st.selectbox("Term", terms, index=terms.index(selected_subject["term"]))
+            code = st.text_input("Subject Code", value=selected_subject["code"])
+            name = st.text_input("Subject Name", value=selected_subject["name"])
+            units = st.number_input("Units", min_value=0, step=1, value=selected_subject["units"])
+
+            submit_edit = st.form_submit_button("Update Subject")
+
+        if submit_edit:
+            updated_data = {
+                "id": selected_subject["id"],  # important to identify the record
+                "program": program,
+                "yearlevel": yearlevel,
+                "term": term,
+                "code": code,
+                "name": name,
+                "units": units,
+            }
+            # Call your update function here (you need to implement it)
+            update_curriculum_subject(updated_data)
+
+            st.success(f"Curriculum Subject {code} - {name} updated successfully!")
+            st.rerun()
+
+    else:
+        st.info("No curriculum subjects found.")

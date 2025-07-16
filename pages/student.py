@@ -47,7 +47,7 @@ with tab2:
             "gender": st.selectbox("Gender", ["Male", "Female", "Other"]),
             "dateofbirth": st.date_input("Date of Birth", min_value=date(1900, 1, 1)).isoformat(),
             "emailaddress": st.text_input("Email Address"),
-            "yearlevel": st.selectbox("Year Level", ["1st Year", "2nd Year", "3rd Year", "4th Year"]),
+            "yearlevel": st.selectbox("Year Level", ["1st Year", "2nd Year", "3rd Year", "4th Year", "Onward"]),
             "program": st.text_input("Program"),
             "section": st.text_input("Section"),
             "enrollmentstatus": st.selectbox("Enrollment Status", ["Enrolled", "Not Enrolled", "Graduated", "Dropped"])

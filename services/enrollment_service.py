@@ -47,13 +47,20 @@ def delete_all_enrollments_for_student_semester(student_id, semester_id):
             delete_enrollment(enrollment["enrollmentid"])
 
 
-def update_student_status(student_id, program, yearlevel, remarks="Enrolled"):
+def update_student_status(student_id, program, yearlevel, remarks="Enrolled", status="Regular"):
     supabase.table("students") \
         .update({
             "program": program,
             "yearlevel": yearlevel,
-            "enrollmentstatus": remarks
+            "enrollmentstatus": remarks,
+            "status": status
         }) \
         .eq("studentid", student_id) \
         .execute()
 
+def get_all_regular_enrollments():
+    response = supabase.from_("enrollments_view") \
+        .select("*") \
+        .eq("enrollmentstatus", "Enrolled") \
+        .execute()
+    return response.data
