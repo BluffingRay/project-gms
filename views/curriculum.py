@@ -7,6 +7,7 @@ from services.curriculum_service import (
     update_curriculum_subject
 )
 from services.program_service import get_all_programs
+from services.program_service import get_all_programs, add_program, delete_program
 from utils.student_fake_data import insert_fake_curriculum_data
 
 
@@ -40,7 +41,7 @@ def show():
     # -------------------------
     # Tabs: View / Add
     # -------------------------
-    tab1, tab2, tab3 = st.tabs(["📋 View Curriculum Subjects", "➕ Add Curriculum Subject", "✏️ Edit Curriculum Subject"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 View Curriculum Subjects", "➕ Add Curriculum Subject", "✏️ Edit Curriculum Subject", "🎓 Program Management"])
 
     # -------------------------
     # View Curriculum Subjects with Filters
@@ -170,3 +171,40 @@ def show():
 
         else:
             st.info("No curriculum subjects found.")
+
+    # -------------------------
+    # Program Management Tab
+    # -------------------------
+    with tab4:
+        st.header("Program Management")
+
+        programs_data = get_all_programs()
+
+        if programs_data:
+            df_programs = pd.DataFrame(programs_data)
+            st.dataframe(df_programs[["program_name"]], use_container_width=True)
+
+            program_names = [p["program_name"] for p in programs_data]
+            selected_program_to_delete = st.selectbox("Select Program to Delete", program_names)
+
+            if st.button("🚨 Delete Selected Program"):
+                delete_program(selected_program_to_delete)
+                st.success(f"Program '{selected_program_to_delete}' deleted successfully.")
+                st.rerun()
+        else:
+            st.info("No programs found.")
+
+        st.divider()
+        st.subheader("Add New Program")
+
+        with st.form("add_program_form"):
+            program_name = st.text_input("Program Name (e.g., BSCS, BSED-English, JD)")
+            submit_program = st.form_submit_button("Add Program")
+
+        if submit_program:
+            if program_name.strip():
+                add_program(program_name.strip())
+                st.success(f"Program '{program_name.strip()}' added successfully!")
+                st.rerun()
+            else:
+                st.warning("Please provide a valid Program Name.")
