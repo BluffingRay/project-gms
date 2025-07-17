@@ -61,3 +61,4 @@ def show():
         if submit:
             add_student(student_data)
             st.success(f"Student {student_data['firstname']} {student_data['lastname']} added successfully!")
+            st.rerun()
