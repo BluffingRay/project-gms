@@ -1,12 +1,11 @@
-from services.curriculum_service import get_all_curriculum_subjects
 import streamlit as st
 import pandas as pd
 from services.enrollment_service import get_all_regular_enrollments
 from services.student_service import get_all_students
+from services.grades_service import get_student_grades, calculate_gwa
 
 
 def show():
-        
     st.set_page_config(page_title="Overview", layout="wide")
     st.title("Enrollment and Grades Overview")
 
@@ -28,16 +27,12 @@ def show():
     students_df = pd.DataFrame(students_for_search)
 
     students_df["studentname"] = students_df["firstname"] + ' ' + students_df["lastname"]
-
-    # ✅ Filter only Regular students
     students_df = students_df[students_df["status"].str.lower() == "regular"]
 
-    # Build the options mapping
     student_options = {
         f"{row['studentname']} ({row['studentid']})": row["studentid"] for _, row in students_df.iterrows()
     }
 
-    # Search bar
     selected_student_display = st.selectbox(
         "Search Student",
         options=[""] + list(student_options.keys()),
@@ -49,7 +44,6 @@ def show():
         st.session_state.selected_student_id = selected_student_id
         st.session_state.page = "edit"
         st.rerun()
-
 
     # -------------------------
     # Filters
@@ -109,37 +103,19 @@ def show():
     for subject in unique_subjects:
         subject_df = filtered_df[filtered_df["subjectname"] == subject][["studentname", "grade"]]
         subject_df = subject_df.drop_duplicates(subset=["studentname"], keep="last").set_index("studentname")["grade"]
-        students[subject] = students["studentname"].map(subject_df).fillna("—")
+        students[subject] = students["studentname"].map(subject_df)
 
     # -------------------------
-    # Compute GWA for Current Semester Subjects Only
+    # Compute GWA via grades_service properly
     # -------------------------
-    curriculum_df = pd.DataFrame(get_all_curriculum_subjects())
-    subject_units = curriculum_df.set_index("name")["units"].to_dict()
+    def get_student_gwa(student_id):
+        df_grades = get_student_grades(student_id)
+        gwa = calculate_gwa(df_grades, yearlevel=year_level_filter, semester_term=semester_filter)
+        if gwa == "--":
+            return None
+        return gwa
 
-    def compute_gwa(row):
-        total_gp = 0
-        total_units = 0
-
-        for subject in unique_subjects:
-            value = row.get(subject, "—")
-            try:
-                grade = float(value)
-                units = subject_units.get(subject, 0)
-                if 1.0 <= grade <= 5.0 and units > 0:
-                    total_gp += grade * units
-                    total_units += units
-                else:
-                    return "—"
-            except:
-                return "—"
-
-        if total_units == 0:
-            return "—"
-        
-        return round(total_gp / total_units, 2)
-
-    students["GWA"] = students.apply(compute_gwa, axis=1)
+    students["GWA"] = students["studentid"].apply(get_student_gwa)
     students.rename(columns={"studentremarks": "Remarks"}, inplace=True)
     students["Remarks"] = students["Remarks"].fillna("-")
 
@@ -156,6 +132,9 @@ def show():
     display_df = students[columns_order]
     display_df.rename(columns={"studentname": "Name"}, inplace=True)
 
+    # Clean GWA column to avoid pyarrow errors
+    display_df["GWA"] = pd.to_numeric(display_df["GWA"], errors="coerce")
+
     # -------------------------
     # Checkbox Filters
     # -------------------------
@@ -168,11 +147,11 @@ def show():
     if show_inc or show_dropped or show_missing:
         def row_matches(row):
             values = list(row[unique_subjects])
-            if show_inc and any("INC" in str(v) for v in values):
+            if show_inc and any("INC" in str(v).upper() for v in values if pd.notna(v)):
                 return True
-            if show_dropped and any(str(v).strip().upper() in ["5.0", "DROPPED", "DROP"] for v in values):
+            if show_dropped and any(str(v).strip().upper() in ["5.0", "DROPPED", "DROP"] for v in values if pd.notna(v)):
                 return True
-            if show_missing and any(v in ["", "—"] for v in values):
+            if show_missing and any(pd.isna(v) for v in values):
                 return True
             return False
 

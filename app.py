@@ -2,7 +2,7 @@ import streamlit as st
 from sidebar import sidebar_navigation
 from database_client import verify_login
 
-st.set_page_config(page_title="Login", page_icon="🔐", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Login", page_icon="🔐", layout="wide", initial_sidebar_state="collapsed")
 
 
 

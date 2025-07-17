@@ -50,7 +50,7 @@ def calculate_gwa(df, yearlevel=None, semester_term=None):
     if valid_df.empty or valid_df["units"].sum() == 0:
         return "--"
 
-    valid_df["gp"] = valid_df["grade"] * valid_df["units"]
+    valid_df.loc[:, "gp"] = valid_df["grade"] * valid_df["units"]
     total_gp = valid_df["gp"].sum()
     total_units = valid_df["units"].sum()
 

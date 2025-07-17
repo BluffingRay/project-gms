@@ -342,6 +342,7 @@ def show():
         st.header("Delete Enrollment(s)")
 
         enrollments = get_all_enrollments()
+
         if enrollments:
             df = pd.DataFrame(enrollments)
             df.rename(columns={
@@ -357,87 +358,106 @@ def show():
                 "enrollmentid": "Enrollment ID"
             }, inplace=True)
 
-            filtered_students = [s for s in students if s.get('enrollmentstatus') not in ['Dropped', 'Graduated']]
-            student_options_dict = {f"{s['firstname']} {s['lastname']}": s["studentid"] for s in filtered_students}
+            students = get_all_students()
+
+            # ✅ Only students with Enrolled status
+            enrolled_students = [s for s in students if s.get('enrollmentstatus', '').startswith('Enrolled')] 
+            student_options_dict = {
+                f"{s['lastname']}, {s['firstname']}": s["studentid"] for s in enrolled_students
+            }
             student_options_list = sorted(student_options_dict.keys())
-            selected_student = st.selectbox("Select Student", student_options_list)
 
-            semesters = df[df["Student Name"] == selected_student][["School Year", "Semester Term"]]
-            semester_keys = semesters.apply(lambda row: f"{row['School Year']} {row['Semester Term']}", axis=1).unique().tolist()
+            if not student_options_list:
+                st.info("No enrolled students found.")
+                st.stop()
 
-            if semester_keys:
-                selected_semester_key = st.selectbox("Select Semester", semester_keys)
-                semester_id = semester_options.get(selected_semester_key)
+            selected_student_display = st.selectbox("Select Student", student_options_list)
+            student_id = student_options_dict[selected_student_display]
 
-                semester_filtered_df = df[
-                    (df["Student Name"] == selected_student)
-                    & (df["School Year"] + " " + df["Semester Term"] == selected_semester_key)
-                ]
+            # ✅ Filter the DataFrame by student ID
+            student_df = df[df["Student Name"] == selected_student_display]
 
-                enrollment_type = semester_filtered_df["Status"].iloc[0] if not semester_filtered_df.empty else "Unknown"
-                st.info(f"Enrollment Type: **{enrollment_type}**")
+            if student_df.empty:
+                st.info(f"No enrollments found for {selected_student_display}")
+                st.stop()
 
-                st.subheader("Enrollments for Deletion (Preview)")
-                st.dataframe(
-                    semester_filtered_df[
-                        ["Subject Code", "Subject Name", "Enrollment Date", "Status"]
-                    ],
-                    use_container_width=True,
-                )
+            # ✅ Get semesters
+            semester_keys = student_df.apply(
+                lambda row: f"{row['School Year']} {row['Semester Term']}", axis=1
+            ).unique().tolist()
 
-                delete_options = ["Delete All Enrollments for this Semester", "Delete a Single Subject"]
-                delete_choice = st.radio("Delete Options", delete_options)
+            if not semester_keys:
+                st.info(f"No semesters found for {selected_student_display}")
+                st.stop()
 
-                if "confirm_delete_all" not in st.session_state:
-                    st.session_state.confirm_delete_all = False
-                if "confirm_delete_single" not in st.session_state:
-                    st.session_state.confirm_delete_single = False
+            selected_semester_key = st.selectbox("Select Semester", semester_keys)
 
-                if delete_choice == "Delete All Enrollments for this Semester":
-                    if st.button("❗ Delete All for this Semester"):
-                        st.session_state.confirm_delete_all = True
+            semester_filtered_df = student_df[
+                (student_df["School Year"] + " " + student_df["Semester Term"] == selected_semester_key)
+            ]
 
-                    if st.session_state.confirm_delete_all:
-                        st.warning(f"Are you sure you want to delete ALL enrollments for {selected_student} in {selected_semester_key}?")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Yes, Confirm Delete"):
-                                student_id = student_options_dict[selected_student]
-                                delete_all_enrollments_for_student_semester(
-                                    student_id, semester_id
-                                )
-                                st.success(f"All enrollments for {selected_student} in {selected_semester_key} deleted.")
-                                st.session_state.confirm_delete_all = False
-                                st.rerun()
-                        with col2:
-                            if st.button("❌ Cancel"):
-                                st.session_state.confirm_delete_all = False
-                                st.rerun()
+            enrollment_type = semester_filtered_df["Status"].iloc[0] if not semester_filtered_df.empty else "Unknown"
+            st.info(f"Enrollment Type: **{enrollment_type}**")
 
-                else:
-                    enrollments_to_delete = {
-                        f"{row['Subject Code']} - {row['Subject Name']}": row["Enrollment ID"]
-                        for _, row in semester_filtered_df.iterrows()
-                    }
-                    selected_subject = st.selectbox("Select Subject to Delete", list(enrollments_to_delete.keys()))
+            st.subheader("Enrollments for Deletion (Preview)")
+            st.dataframe(
+                semester_filtered_df[
+                    ["Subject Code", "Subject Name", "Enrollment Date", "Status"]
+                ],
+                use_container_width=True,
+            )
 
-                    if st.button(f"❗ Delete {selected_subject}"):
-                        st.session_state.confirm_delete_single = True
+            delete_options = ["Delete All Enrollments for this Semester", "Delete a Single Subject"]
+            delete_choice = st.radio("Delete Options", delete_options)
 
-                    if st.session_state.confirm_delete_single:
-                        st.warning(f"Are you sure you want to delete {selected_subject} for {selected_student}?")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Yes, Confirm Delete"):
-                                delete_enrollment(enrollments_to_delete[selected_subject])
-                                st.success(f"{selected_subject} for {selected_student} deleted.")
-                                st.session_state.confirm_delete_single = False
-                                st.rerun()
-                        with col2:
-                            if st.button("❌ Cancel"):
-                                st.session_state.confirm_delete_single = False
-                                st.rerun()
+            if "confirm_delete_all" not in st.session_state:
+                st.session_state.confirm_delete_all = False
+            if "confirm_delete_single" not in st.session_state:
+                st.session_state.confirm_delete_single = False
+
+            if delete_choice == "Delete All Enrollments for this Semester":
+                if st.button("❗ Delete All for this Semester"):
+                    st.session_state.confirm_delete_all = True
+
+                if st.session_state.confirm_delete_all:
+                    st.warning(f"Are you sure you want to delete ALL enrollments for {selected_student_display} in {selected_semester_key}?")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("✅ Yes, Confirm Delete"):
+                            delete_all_enrollments_for_student_semester(
+                                student_id, semester_options.get(selected_semester_key)
+                            )
+                            st.success(f"All enrollments for {selected_student_display} in {selected_semester_key} deleted.")
+                            st.session_state.confirm_delete_all = False
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Cancel"):
+                            st.session_state.confirm_delete_all = False
+                            st.rerun()
+
             else:
-                st.info(f"No enrollments found for {selected_student}")
+                enrollments_to_delete = {
+                    f"{row['Subject Code']} - {row['Subject Name']}": row["Enrollment ID"]
+                    for _, row in semester_filtered_df.iterrows()
+                }
+                selected_subject = st.selectbox("Select Subject to Delete", list(enrollments_to_delete.keys()))
+
+                if st.button(f"❗ Delete {selected_subject}"):
+                    st.session_state.confirm_delete_single = True
+
+                if st.session_state.confirm_delete_single:
+                    st.warning(f"Are you sure you want to delete {selected_subject} for {selected_student_display}?")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("✅ Yes, Confirm Delete"):
+                            delete_enrollment(enrollments_to_delete[selected_subject])
+                            st.success(f"{selected_subject} for {selected_student_display} deleted.")
+                            st.session_state.confirm_delete_single = False
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Cancel"):
+                            st.session_state.confirm_delete_single = False
+                            st.rerun()
+
         else:
             st.info("No enrollments found to delete.")
