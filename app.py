@@ -1,21 +1,41 @@
 import streamlit as st
 from sidebar import sidebar_navigation
+from database_client import verify_login
+
+st.set_page_config(page_title="Login", page_icon="🔐", layout="centered", initial_sidebar_state="collapsed")
+
+
 
 # -------------------
-# Initialize session state
+# Login
 # -------------------
+if "user" not in st.session_state:
+
+    st.title("🔐 Login")
+    user_id = st.text_input("ID")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        user = verify_login(user_id, password)
+        if user:
+            st.session_state["user"] = user
+            st.rerun()
+        else:
+            st.error("Invalid ID or password.")
+
+    st.stop()
+
 if "page" not in st.session_state:
-    st.session_state.page = "overview"  # ✅ Set to overview
+    st.session_state.page = "landing"
 
-# -------------------
-# Sidebar
-# -------------------
 sidebar_navigation()
 
 # -------------------
-# Routing for all views
+# Routing
 # -------------------
-if st.session_state.page == "overview":
+if st.session_state.page == "landing":
+    import views.landing as page
+elif st.session_state.page == "overview":
     import views.overview as page
 elif st.session_state.page == "enrollment":
     import views.enrollment as page
@@ -42,7 +62,8 @@ elif st.session_state.page == "student":
 else:
     st.error("🚨 Page not found.")
 
-# -------------------
-# Render selected page
-# -------------------
 page.show()
+
+if st.button("Logout"):
+    del st.session_state["user"]
+    st.rerun()
