@@ -1,8 +1,48 @@
 import streamlit as st
-from utils.auth import require_login
+from sidebar import sidebar_navigation
 
-st.set_page_config(page_title="Grading System", layout="wide")
-require_login()
+# -------------------
+# Initialize session state
+# -------------------
+if "page" not in st.session_state:
+    st.session_state.page = "overview"  # ✅ Set to overview
 
-st.title("Grading Dashboard")
-st.write("Use sidebar to navigate pages.")
+# -------------------
+# Sidebar
+# -------------------
+sidebar_navigation()
+
+# -------------------
+# Routing for all views
+# -------------------
+if st.session_state.page == "overview":
+    import views.overview as page
+elif st.session_state.page == "enrollment":
+    import views.enrollment as page
+elif st.session_state.page == "edit":
+    import views.edit as page
+elif st.session_state.page == "batch_graduate":
+    import views.batch_graduate as page
+elif st.session_state.page == "migrate":
+    import views.migrate as page
+elif st.session_state.page == "wideview":
+    import views.wideview as page
+elif st.session_state.page == "irregular_overview":
+    import views.irregular_overview as page
+elif st.session_state.page == "irregular_edit":
+    import views.irregular_edit as page
+elif st.session_state.page == "graduate_edit":
+    import views.graduate_edit as page
+elif st.session_state.page == "curriculum":
+    import views.curriculum as page
+elif st.session_state.page == "semester":
+    import views.semester as page
+elif st.session_state.page == "student":
+    import views.student as page
+else:
+    st.error("🚨 Page not found.")
+
+# -------------------
+# Render selected page
+# -------------------
+page.show()

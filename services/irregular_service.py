@@ -35,6 +35,12 @@ def get_irregular_subjects(student_id, schoolyear, semester_term):
         .execute()
     return response.data if response.data else []
 
+def get_irregular_subjects_all_semesters(student_id):
+    response = supabase.table("enrollments_view") \
+        .select("*") \
+        .eq("studentid", student_id) \
+        .execute()
+    return response.data if response.data else []
 
 def add_manual_subject(student_id, semester_id, subjectname, units, grade):
     from services.semester_service import get_all_semesters
