@@ -94,3 +94,4 @@ def show():
             }).execute()
 
         st.success(f"✅ Saved {len(selected_subject_ids)} subjects for {selected_semester}!")
+        st.rerun()
