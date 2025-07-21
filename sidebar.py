@@ -52,6 +52,9 @@ def sidebar_navigation():
         if st.button("Semester", key="tools_semester"):
             st.session_state.page = "semester"
             st.rerun()
+        if st.button("Subject per Semester", key="tools_subject_semester"):
+            st.session_state.page = "semester_subject"
+            st.rerun()
         if st.button("Logout"):
             del st.session_state["user"]
             st.rerun()

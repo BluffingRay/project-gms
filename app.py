@@ -55,6 +55,8 @@ elif st.session_state.page == "semester":
     import views.semester as page
 elif st.session_state.page == "student":
     import views.student as page
+elif st.session_state.page == "semester_subject":
+    import views.manage_semester_subjects as page
 else:
     st.error("🚨 Page not found.")
 
