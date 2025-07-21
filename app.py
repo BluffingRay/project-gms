@@ -49,10 +49,6 @@ elif st.session_state.page == "wideview":
     import views.wideview as page
 elif st.session_state.page == "irregular_overview":
     import views.irregular_overview as page
-elif st.session_state.page == "irregular_edit":
-    import views.irregular_edit as page
-elif st.session_state.page == "graduate_edit":
-    import views.graduate_edit as page
 elif st.session_state.page == "curriculum":
     import views.curriculum as page
 elif st.session_state.page == "semester":
@@ -63,7 +59,3 @@ else:
     st.error("🚨 Page not found.")
 
 page.show()
-
-if st.button("Logout"):
-    del st.session_state["user"]
-    st.rerun()

@@ -1,6 +1,7 @@
 import streamlit as st
 from database_client import create_account
 
+
 st.set_page_config(page_title="Sign-Up", page_icon="📝", layout="centered", initial_sidebar_state="collapsed")
 hide_streamlit_style = """
             <style>

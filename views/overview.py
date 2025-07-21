@@ -4,8 +4,8 @@ from services.enrollment_service import get_all_regular_enrollments
 from services.student_service import get_all_students
 from services.grades_service import get_student_grades, calculate_gwa
 
-
 def show():
+
     st.set_page_config(page_title="Overview", layout="wide")
     st.title("Enrollment and Grades Overview")
 
@@ -77,7 +77,7 @@ def show():
 
     def has_problematic_grade(grades):
         return any(
-            (pd.isna(g) or str(g).strip().upper() == "INC" or str(g).strip() == "")
+            (pd.isna(g) or str(g).strip().upper() == "INC" or str(g).strip() == "" or str(g).strip().upper() == "Dropped")
             for g in grades
         )
 
@@ -151,7 +151,7 @@ def show():
                 return True
             if show_dropped and any(str(v).strip().upper() in ["5.0", "DROPPED", "DROP"] for v in values if pd.notna(v)):
                 return True
-            if show_missing and any(pd.isna(v) for v in values):
+            if show_missing and any(pd.isna(v) or str(v).strip() == "" for v in values):
                 return True
             return False
 

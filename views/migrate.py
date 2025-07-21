@@ -6,10 +6,11 @@ from services.enrollment_service import (
     get_curriculum_subjects,
     add_enrollment,
     update_student_status,
+    migrate_student_to_semester_subjects
 )
 
-
 def show():
+
     st.set_page_config(page_title="Batch Enrollment Migration", layout="wide")
     st.title("Batch Enroll Students from One Semester to Another")
 
@@ -85,6 +86,7 @@ def show():
             program = student["program"]
             yearlevel = student["yearlevel"]
 
+            # ✅ Already enrolled in the target semester?
             already_enrolled = df_enrollments_latest[
                 (df_enrollments_latest["studentid"] == student_id) &
                 (df_enrollments_latest["semesterid"] == target_sem_id)
@@ -93,7 +95,7 @@ def show():
                 skipped_students.append(f"{student_name} (already enrolled in target semester)")
                 continue
 
-            # Check for incomplete grades in source semester
+            # ✅ Incomplete or dropped in source semester?
             student_source_enrollments = df_enrollments_latest[
                 (df_enrollments_latest["studentid"] == student_id) &
                 (df_enrollments_latest["semesterid"] == source_sem_id)
@@ -102,39 +104,24 @@ def show():
 
             has_incomplete = (
                 grades_series.isna().any() or
-                grades_series.astype(str).str.upper().isin(["INC", "DROPPED", "DROP", "Dropped"]).any()
+                grades_series.astype(str).str.upper().isin(["INC", "DROPPED", "DROP", "Dropped", "None", "", " "]).any()
             )
 
             if has_incomplete:
-                skipped_students.append(f"{student_name} (incomplete grades in source semester)")
+                skipped_students.append(f"{student_name} (incomplete or dropped grades in source semester)")
                 continue
 
-            term = target_sem_key.split(" ", 1)[1]
-            subjects = get_curriculum_subjects(program, yearlevel, term)
-            if not subjects:
-                failed_students.append((student_name, "No subjects found for program/year/term in target semester"))
-                continue
-
+            # ✅ Proceed with your function
             try:
-                for subject in subjects:
-                    add_enrollment(
-                        student_id=student_id,
-                        curriculum_id=subject["id"],
-                        semester_id=target_sem_id,
-                        enrollment_status="Enrolled - Regular",
-                        remarks="Regular"
-                    )
-                update_student_status(
-                    student_id=student_id,
-                    program=program,
-                    yearlevel=yearlevel,
-                    remarks="Enrolled",
-                    status="Regular"
-                )
-                success_count += 1
+                result_message = migrate_student_to_semester_subjects(student_id, target_sem_id)
+                if "Enrolled 0" in result_message:
+                    skipped_students.append(f"{student_name} (already enrolled in all subjects)")
+                else:
+                    success_count += 1
             except Exception as e:
                 failed_students.append((student_name, f"Enrollment error: {str(e)}"))
 
+        # ✅ Results Feedback
         if success_count > 0:
             st.success(f"✅ Successfully migrated {success_count} students to {target_sem_key}.")
         if skipped_students:
@@ -143,3 +130,5 @@ def show():
             st.error("❌ Enrollment failed for:")
             for name, error in failed_students:
                 st.write(f"- {name}: {error}")
+
+

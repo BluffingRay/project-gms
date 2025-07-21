@@ -9,11 +9,12 @@ from services.enrollment_service import (
     get_all_enrollments,
     delete_enrollment,
     delete_all_enrollments_for_student_semester,
+    get_subjects_for_semester,
 )
 from services.program_service import get_all_programs
 
 def show():
-        
+    
     st.set_page_config(page_title="Enrollment Management", layout="wide")
     st.title("Enrollment Management")
 
@@ -60,40 +61,70 @@ def show():
 
             if st.button("🚀 Enroll to All Subjects (Regular)"):
                 all_enrollments = get_all_enrollments()
-                df_enrollments = pd.DataFrame(all_enrollments)
+                df_enrollments = pd.DataFrame(all_enrollments or [])
 
                 student_id = student_options[student_name]
+
+                # ✅ Check if already enrolled in this semester
                 already_enrolled = df_enrollments[
                     (df_enrollments["studentid"] == student_id) &
-                    (df_enrollments["schoolyear"] == school_year) &
-                    (df_enrollments["semester_term"] == term)
+                    (df_enrollments["semesterid"] == semester_id)
                 ]
+                already_curriculum_ids = set(already_enrolled["curriculumid"].tolist())
 
-                if not already_enrolled.empty:
-                    st.warning(f"{student_name} is already enrolled for {school_year} {term}.")
-                else:
-                    subjects = get_curriculum_subjects(program, year_level, term)
+                # ✅ Check for missing or incomplete grades in existing semesters
+                source_enrollments = df_enrollments[df_enrollments["studentid"] == student_id]
+                if not source_enrollments.empty:
+                    grades_series = source_enrollments["grade"]
+                    has_incomplete = (
+                        grades_series.isna().any() or
+                        grades_series.astype(str).str.strip().eq("").any() or
+                        grades_series.astype(str).str.upper().isin(["INC", "INCOMPLETE", "DROPPED", "DROP", "Dropped"]).any()
+                    )
 
-                    if subjects:
-                        for subject in subjects:
-                            add_enrollment(
-                                student_id=student_id,
-                                curriculum_id=subject["id"],
-                                semester_id=semester_id,
-                                enrollment_status= "Enrolled - Regular",
-                                remarks="Regular"
-                            )
-                        update_student_status(
-                            student_id=student_id,
-                            program=program,
-                            yearlevel=year_level,
-                            remarks="Enrolled ",
-                            status="Regular"
-                        )
-                        st.success(f"✅ {student_name} enrolled in all {program} {year_level} {term} subjects as **Regular** student.")
-                        st.rerun()
+                    if has_incomplete:
+                        st.warning(f"{student_name} has incomplete or missing grades in prior semesters. Cannot proceed with enrollment.")
                     else:
-                        st.warning("No subjects found for this Program / Year / Term.")
+                        # ✅ Get semester subjects
+                        semester_subjects = get_subjects_for_semester(semester_id)
+
+                        # ✅ Filter by Year Level only
+                        filtered_subjects = [
+                            s for s in semester_subjects
+                            if s["curriculum_subjects"]["yearlevel"] == year_level
+                        ]
+
+                        if not filtered_subjects:
+                            st.warning(f"No subjects found for {program} {year_level} in {term}.")
+                        else:
+                            enrolled_count = 0
+                            for subject in filtered_subjects:
+                                curriculum_id = subject["curriculum_subject_id"]
+
+                                # Skip if already enrolled
+                                if curriculum_id in already_curriculum_ids:
+                                    continue
+
+                                add_enrollment(
+                                    student_id=student_id,
+                                    curriculum_id=curriculum_id,
+                                    semester_id=semester_id,
+                                    enrollment_status="Enrolled - Regular",
+                                    remarks="Regular"
+                                )
+                                enrolled_count += 1
+
+                            if enrolled_count > 0:
+                                update_student_status(
+                                    student_id=student_id,
+                                    program=program,
+                                    yearlevel=year_level,
+                                    remarks="Enrolled",
+                                    status="Regular"
+                                )
+                                st.success(f"✅ {student_name} enrolled in {enrolled_count} new subjects for {program} {year_level} {term} as **Regular**.")
+                            else:
+                                st.info(f"{student_name} is already enrolled in all subjects for {program} {year_level} {term}.")
 
         elif enrollment_type == "Irregular":  # Irregular Enrollment
             st.subheader("Irregular Enrollment")
@@ -264,7 +295,6 @@ def show():
                             del st.session_state["record_semester_key"]
                             del st.session_state["record_school_year"]
                             del st.session_state["record_term"]
-                            st.rerun()
 
 
 

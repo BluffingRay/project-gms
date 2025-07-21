@@ -78,4 +78,3 @@ def show():
         if submit:
             add_semester(semester_data)
             st.success(f"Semester {semester_data['schoolyear']} {semester_data['term']} added successfully!")
-            st.rerun()

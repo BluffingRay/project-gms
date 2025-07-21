@@ -73,7 +73,7 @@ def show():
                 student_enrollments["grade"]
                 .astype(str)
                 .str.upper()
-                .str.contains("5.0|FAILED|DROP|DROPPED|INC", na=False)
+                .str.contains("5.0|FAILED|DROP|DROPPED|INC|Dropped", na=False)
             ]
             failed_count = failed.shape[0]
         else:

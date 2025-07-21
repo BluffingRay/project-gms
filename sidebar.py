@@ -11,9 +11,6 @@ def sidebar_navigation():
         if st.button("Overview", key="regular_overview"):
             st.session_state.page = "overview"
             st.rerun()
-        if st.button("Edit Info", key="regular_edit"):
-            st.session_state.page = "edit"
-            st.rerun()
         if st.button("Migrate Data", key="regular_migrate"):
             st.session_state.page = "migrate"
             st.rerun()
@@ -28,16 +25,12 @@ def sidebar_navigation():
         if st.button("Irregular Overview", key="irregular_overview"):
             st.session_state.page = "irregular_overview"
             st.rerun()
-        if st.button("Irregular Edit Info", key="irregular_edit"):
-            st.session_state.page = "irregular_edit"
-            st.rerun()
 
-        # ---------------- Graduate ----------------
+        # ---------------- Edit ----------------
         st.markdown("---")
-        st.markdown("### 🎓 Graduate Records")
-
-        if st.button("Graduate Edit Info", key="graduate_edit"):
-            st.session_state.page = "graduate_edit"
+        st.markdown("### Edit Records")
+        if st.button("Edit Info", key="regular_edit"):
+            st.session_state.page = "edit"
             st.rerun()
 
         # ---------------- Tools ----------------
@@ -59,3 +52,8 @@ def sidebar_navigation():
         if st.button("Semester", key="tools_semester"):
             st.session_state.page = "semester"
             st.rerun()
+        if st.button("Logout"):
+            del st.session_state["user"]
+            st.rerun()
+
+

@@ -76,58 +76,37 @@ def update_enrollment_status_and_remarks(student_id, semester_id, enrollment_sta
         .execute()
 
 
-def migrate_enrollments_for_student(student_id, source_semester_id, target_semester_id):
-    # 1. Get all enrollments for the student in the source semester
-    response = supabase.table("enrollments").select("*") \
-        .eq("studentid", student_id) \
-        .eq("semesterid", source_semester_id) \
-        .execute()
+def migrate_student_to_semester_subjects(student_id, target_semester_id):
+    semester_subjects = get_subjects_for_semester(target_semester_id)
+    if not semester_subjects:
+        return "No subjects offered for the selected semester."
 
-    if response.status_code != 200:
-        raise Exception(f"Failed to fetch enrollments: status {response.status_code}")
+    migrated = 0
+    skipped = 0
 
-    source_enrollments = response.data
-    if not source_enrollments:
-        return "No enrollments found to migrate."
+    for subject in semester_subjects:
+        curriculum_id = subject["curriculum_subject_id"]
 
-    migrated_count = 0
-    skipped_count = 0
-
-    for enrollment in source_enrollments:
-        curriculum_id = enrollment["curriculumid"]
-
-        # 2. Check if enrollment already exists for target semester and curriculum_id
-        check_resp = supabase.table("enrollments").select("enrollmentid") \
+        # Check if already enrolled
+        existing = supabase.table("enrollments").select("enrollmentid") \
             .eq("studentid", student_id) \
             .eq("semesterid", target_semester_id) \
             .eq("curriculumid", curriculum_id) \
             .execute()
 
-        if check_resp.status_code != 200:
-            raise Exception(f"Failed to check existing enrollment: status {check_resp.status_code}")
-
-        if check_resp.data and len(check_resp.data) > 0:
-            # Already enrolled in this subject for the target semester
-            skipped_count += 1
+        if existing.data:
+            skipped += 1
             continue
 
-        # 3. Insert new enrollment for target semester
-        new_enrollment = {
-            "studentid": student_id,
-            "curriculumid": curriculum_id,
-            "semesterid": target_semester_id,
-            "enrollmentdate": date.today().isoformat(),
-            "enrollmentstatus": enrollment.get("enrollmentstatus", "Enrolled"),
-            "remarks": enrollment.get("remarks", "Regular")
-        }
+        add_enrollment(
+            student_id=student_id,
+            curriculum_id=curriculum_id,
+            semester_id=target_semester_id
+        )
+        migrated += 1
 
-        insert_resp = supabase.table("enrollments").insert(new_enrollment).execute()
-        if insert_resp.status_code != 201:  # 201 Created
-            raise Exception(f"Failed to insert enrollment for curriculum {curriculum_id}: status {insert_resp.status_code}")
+    return f"Enrolled {migrated} subjects. Skipped {skipped} (already enrolled)."
 
-        migrated_count += 1
-
-    return f"Migration complete: {migrated_count} enrollments migrated, {skipped_count} enrollments skipped (already exist)."
 
 
 def get_students_in_semester(semester_id):
@@ -142,3 +121,20 @@ def get_students_in_semester(semester_id):
         unique_students = {s['studentid']: s for s in response.data}
         return list(unique_students.values())
     return []
+
+
+def get_subjects_for_semester(semester_id):
+    response = supabase.table("semester_subjects").select("""
+        id,
+        semester_id,
+        curriculum_subject_id,
+        curriculum_subjects(name, code, units, program, yearlevel, term)
+    """).eq("semester_id", semester_id).execute()
+
+    return response.data
+
+
+
+
+
+
